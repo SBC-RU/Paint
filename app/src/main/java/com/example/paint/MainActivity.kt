@@ -108,10 +108,17 @@ fun PaintCanvas(
     pathList: SnapshotStateList<PathData>,
     isPanMode: Boolean
 ) {
-    var tempPath by remember { mutableStateOf(Path()) }
+    // смещение холста (режим "рука")
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
 
+    // временный Path для текущего мазка (один и тот же, переиспользуем)
+    val tempPath = remember { Path() }
+    // данные текущего мазка (цвет, ширина и т.д.)
+    var currentStrokeData by remember { mutableStateOf<PathData?>(null) }
+
+    // счётчик для триггера перерисовки
+    var drawVersion by remember { mutableStateOf(0) }
 
     Canvas(
         modifier = Modifier
@@ -121,46 +128,55 @@ fun PaintCanvas(
             .clipToBounds()
             .pointerInput(isPanMode) {
                 detectDragGestures(
-                    onDragStart = { _ ->
+                    onDragStart = { start ->
                         if (!isPanMode) {
-                            tempPath = Path()
+                            // начинаем новый мазок
+                            tempPath.reset()
+                            tempPath.moveTo(start.x - offsetX, start.y - offsetY)
+                            currentStrokeData = pathData1.value
+                            drawVersion++ // попросить Canvas перерисоваться
                         }
                     },
                     onDragEnd = {
                         if (!isPanMode) {
-                            pathList.add(
-                                pathData1.value.copy(
-                                    path = tempPath
-                                )
-                            )
+                            currentStrokeData?.let { data ->
+                                // создаём КОПИЮ пути для списка,
+                                // чтобы не зависеть от tempPath
+                                val pathForList = Path().apply { addPath(tempPath) }
+                                pathList.add(data.copy(path = pathForList))
+                            }
                         }
+                        currentStrokeData = null
+                        drawVersion++
+                    },
+                    onDragCancel = {
+                        currentStrokeData = null
+                        drawVersion++
                     }
                 ) { change, dragAmount ->
                     if (isPanMode) {
-                        // Режим "рука" — двигаем холст
+                        // режим "рука" — двигаем холст
                         offsetX += dragAmount.x
                         offsetY += dragAmount.y
+                        drawVersion++
                     } else {
-                        // Обычный режим — рисуем, но учитываем смещение холста
-                        val startX = change.position.x - dragAmount.x - offsetX
-                        val startY = change.position.y - dragAmount.y - offsetY
-                        val endX = change.position.x - offsetX
-                        val endY = change.position.y - offsetY
-
-                        tempPath.moveTo(startX, startY)
-                        tempPath.lineTo(endX, endY)
-
-                        pathList.add(
-                            pathData1.value.copy(
-                                path = tempPath
-                            )
+                        val data = currentStrokeData ?: return@detectDragGestures
+                        // продолжаем линию (координаты относительно холста)
+                        tempPath.lineTo(
+                            change.position.x - offsetX,
+                            change.position.y - offsetY
                         )
+                        drawVersion++ // снова просим перерисовать
                     }
                 }
             }
     ) {
-        // Рисуем с учетом смещения холста
+        // ЧИТАЕМ переменную, чтобы Canvas "подписался" на её изменения
+        val dummyVersion = drawVersion
+
+        // рисуем с учётом смещения холста
         translate(left = offsetX, top = offsetY) {
+            // уже завершённые мазки
             pathList.forEach { pathData ->
                 drawPath(
                     pathData.path,
@@ -171,8 +187,21 @@ fun PaintCanvas(
                     )
                 )
             }
+
+            // текущий незавершённый мазок
+            val data = currentStrokeData
+            if (data != null) {
+                drawPath(
+                    tempPath,
+                    color = data.color,
+                    style = Stroke(
+                        data.lineWidth,
+                        cap = StrokeCap.Round
+                    )
+                )
+            }
         }
-
     }
-
 }
+
+
