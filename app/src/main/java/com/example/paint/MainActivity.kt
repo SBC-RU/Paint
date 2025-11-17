@@ -35,13 +35,13 @@ class MainActivity : ComponentActivity() {
             val viewModel: MainViewModel by viewModels()
 
             PaintTheme {
-                // Используем Box для наложения элементов
+                //innterpadding (авто паддинг)
                 Box(modifier = Modifier.fillMaxSize()) {
 
-                    // 🎨 Холст для рисования (нижний слой)
+                    // Холст для рисования (нижний слой)
                     PaintCanvas(viewModel.currentPathData, viewModel.pathList)
 
-                    // 🧭 Панель управления (верхний слой)
+                    // Панель управления (верхний слой)
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopCenter) // приклеить к верху
@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
                                 println("Save button clicked!")
                             },
                             {
-                                // 🧽 Ластик: просто меняем цвет на цвет фона
+                                // Ластик
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(color = Color(0xFFFAFAFA))
                             }
@@ -85,9 +85,9 @@ fun PaintCanvas(pathData1: MutableState<PathData>, pathList: SnapshotStateList<P
     Canvas(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 100.dp) // 👈 отступ, чтобы не рисовать по панели
+            .padding(top = 100.dp)
             .navigationBarsPadding()
-            .clipToBounds()           // 👈 чтобы линии не выходили за холст
+            .clipToBounds()
             .pointerInput(true) {
                 detectDragGestures(
                     onDragStart = {

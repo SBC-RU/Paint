@@ -78,9 +78,9 @@ fun BottomPanel(
 
         }
 
-        // ───────────────────────────────
+
         // Второй уровень: палитра + слайдер (в одной строке)
-        // ───────────────────────────────
+
         if (showColorPalette) {
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -91,16 +91,16 @@ fun BottomPanel(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 🎨 Палитра цветов (слева)
+                // Палитра цветов (слева)
                 ColorList(
                     modifier = Modifier.weight(1f),
                     onClick = { color -> onClick(color) }
                 )
 
-                // ↔️ Небольшой отступ между палитрой и слайдером
+                // Небольшой отступ между палитрой и слайдером
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // 🎚 Слайдер толщины линии (справа)
+                // Слайдер толщины линии (справа)
                 CustomSlider(
                     modifier = Modifier.weight(1f),
                     onChange = { lineWidth -> onLineWidthChange(lineWidth) }
@@ -181,7 +181,7 @@ fun CustomSlider(
 fun ButtonPanel(
     onBackClick: () -> Unit,
     onColorToggle: () -> Unit,
-    onSaveClick: (String) -> Unit, // теперь принимаем формат
+    onSaveClick: (String) -> Unit,
     onEraserClick: () -> Unit
 ) {
     var showSaveMenu by remember { mutableStateOf(false) }
@@ -190,7 +190,7 @@ fun ButtonPanel(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // ↩ Кнопка "Назад"
+        // Кнопка "Назад"
         IconButton(
             modifier = Modifier
                 .clip(CircleShape)
@@ -200,7 +200,7 @@ fun ButtonPanel(
             Icon(Icons.Default.Undo, contentDescription = "Undo")
         }
 
-        // 🎨 Кнопка "Цвета"
+        // Кнопка "Цвета"
         IconButton(
             modifier = Modifier
                 .clip(CircleShape)
@@ -210,7 +210,7 @@ fun ButtonPanel(
             Icon(Icons.Default.Create, contentDescription = "Color palette")
         }
 
-        // 💾 Кнопка "Сохранить"
+        // Кнопка "Сохранить"
         Box {
             IconButton(
                 modifier = Modifier
@@ -242,7 +242,7 @@ fun ButtonPanel(
             }
         }
 
-        // 🧽 Кнопка "Ластик"
+        // Кнопка "Ластик"
         IconButton(
             modifier = Modifier
                 .clip(CircleShape)
