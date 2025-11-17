@@ -22,29 +22,37 @@ import com.example.paint.ui.theme.PathData
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clipToBounds
 import androidx.activity.viewModels
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
 import com.example.paint.MainViewModel
+
+import androidx.compose.ui.platform.LocalContext
+import android.util.DisplayMetrics
+import androidx.compose.runtime.CompositionLocalProvider
+// ...остальные импорты
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            //val pathData = remember { mutableStateOf(PathData()) }
-            //val pathList = remember { mutableStateListOf(PathData()) }
 
             val viewModel: MainViewModel by viewModels()
+            val context = LocalContext.current
+
+            // размеры экрана в px (для экспорта)
+            val displayMetrics: DisplayMetrics = context.resources.displayMetrics
+            val widthPx = displayMetrics.widthPixels
+            val heightPx = displayMetrics.heightPixels
 
             PaintTheme {
-                //innterpadding (авто паддинг)
                 Box(modifier = Modifier.fillMaxSize()) {
 
-                    // Холст для рисования (нижний слой)
                     PaintCanvas(viewModel.currentPathData, viewModel.pathList)
 
-                    // Панель управления (верхний слой)
                     Box(
                         modifier = Modifier
-                            .align(Alignment.TopCenter) // приклеить к верху
+                            .align(Alignment.TopCenter)
                             .padding(top = 40.dp)
                     ) {
                         BottomPanel(
@@ -59,12 +67,20 @@ class MainActivity : ComponentActivity() {
                             {
                                 if (viewModel.pathList.isNotEmpty()) {
                                     val last = viewModel.pathList.last()
-                                    viewModel.pathList.removeIf { it == last } // удаляем все дубликаты последнего
+                                    viewModel.pathList.removeIf { it == last }
                                 }
                             },
-                            {
-                                println("Save button clicked!")
+                            { format ->
+                                when (format) {
+                                    "png" -> {
+                                        saveDrawingAsPng(context, viewModel.pathList, widthPx, heightPx)
+                                    }
+                                    "svg" -> {
+                                        saveDrawingAsSvg(context, viewModel.pathList, widthPx, heightPx)
+                                    }
+                                }
                             },
+
                             {
                                 // Ластик
                                 viewModel.currentPathData.value =
@@ -77,6 +93,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
 
 @Composable
 fun PaintCanvas(pathData1: MutableState<PathData>, pathList: SnapshotStateList<PathData>) {

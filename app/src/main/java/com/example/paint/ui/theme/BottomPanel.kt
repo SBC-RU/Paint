@@ -43,9 +43,10 @@ fun BottomPanel(
     onClick: (Color) -> Unit,
     onLineWidthChange: (Float) -> Unit,
     onBackClick: () -> Unit,
-    onSaveClick: () -> Unit,
+    onSaveClick: (String) -> Unit,   // ← ИЗМЕНЕНО
     onEraserClick: () -> Unit
-) {
+)
+{
     // состояние для отображения палитры
     var showColorPalette by remember { mutableStateOf(false) }
 
@@ -70,11 +71,14 @@ fun BottomPanel(
                 onBackClick = onBackClick,
                 onColorToggle = { showColorPalette = !showColorPalette },
                 onSaveClick = { format ->
-                    // Заглушка пока
+                    // Лог в консоль, как и был
                     println("Пользователь выбрал сохранение как $format")
+                    // И ПЛЮС вызов реального обработчика из MainActivity
+                    onSaveClick(format)
                 },
                 onEraserClick = onEraserClick
             )
+
 
         }
 
