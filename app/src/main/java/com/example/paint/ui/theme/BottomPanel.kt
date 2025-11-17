@@ -1,45 +1,24 @@
 package com.example.paint.ui.theme
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Undo
-import androidx.compose.material.icons.filled.AutoFixOff
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.PanTool
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
-
-
-import androidx.compose.material.icons.filled.PanTool
 
 @Composable
 fun BottomPanel(
@@ -48,82 +27,130 @@ fun BottomPanel(
     onBackClick: () -> Unit,
     onSaveClick: (String) -> Unit,
     onEraserClick: () -> Unit,
-    onClearAllClick: () -> Unit,      // уже есть у тебя
-    onPanModeToggle: () -> Unit,      // переключатель режима «рука»
-    isPanMode: Boolean                // текущее состояние
-)
-
-
-{
-    // состояние для отображения палитры
+    onClearAllClick: () -> Unit,
+    onPanModeToggle: () -> Unit,
+    isPanMode: Boolean
+) {
     var showColorPalette by remember { mutableStateOf(false) }
+    var showSaveMenu by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.LightGray)
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ───────────────────────────────
-        // Первый уровень: кнопки
-        // ───────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ButtonPanel(
-                onBackClick = onBackClick,
-                onColorToggle = { showColorPalette = !showColorPalette },
-                onSaveClick = { format ->
-                    println("Пользователь выбрал сохранение как $format")
-                    onSaveClick(format)
-                },
-                onEraserClick = onEraserClick,
-                onClearAllClick = onClearAllClick,
-                onPanModeToggle = onPanModeToggle,
-                isPanMode = isPanMode
+        // Основная "плавающая" панель инструментов
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFFDFDFD)
             )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Undo
+                ToolIconButton(
+                    icon = Icons.Default.Undo,
+                    contentDescription = "Undo",
+                    onClick = onBackClick
+                )
 
+                // Палитра/кисть
+                ToolIconButton(
+                    icon = Icons.Default.Create,
+                    contentDescription = "Brush & colors",
+                    onClick = { showColorPalette = !showColorPalette }
+                )
 
+                // Ластик
+                ToolIconButton(
+                    icon = Icons.Default.AutoFixOff,
+                    contentDescription = "Eraser",
+                    onClick = onEraserClick
+                )
+
+                // Режим "рука" (панорамирование)
+                ToolIconButton(
+                    icon = Icons.Default.PanTool,
+                    contentDescription = "Pan mode",
+                    onClick = onPanModeToggle,
+                    highlighted = isPanMode
+                )
+
+                // Стереть всё
+                ToolIconButton(
+                    icon = Icons.Default.Delete,
+                    contentDescription = "Clear all",
+                    onClick = onClearAllClick
+                )
+
+                // Сохранить (меню PNG/SVG)
+                Box {
+                    ToolIconButton(
+                        icon = Icons.Default.Share,
+                        contentDescription = "Save",
+                        onClick = { showSaveMenu = true }
+                    )
+
+                    DropdownMenu(
+                        expanded = showSaveMenu,
+                        onDismissRequest = { showSaveMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Сохранить как PNG") },
+                            onClick = {
+                                showSaveMenu = false
+                                onSaveClick("png")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Сохранить как SVG") },
+                            onClick = {
+                                showSaveMenu = false
+                                onSaveClick("svg")
+                            }
+                        )
+                    }
+                }
+            }
         }
 
-
-        // Второй уровень: палитра + слайдер (в одной строке)
-
-        if (showColorPalette) {
+        // Палитра + слайдер показываются аккуратно под карточкой
+        AnimatedVisibility(visible = showColorPalette) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Палитра цветов (слева)
                 ColorList(
                     modifier = Modifier.weight(1f),
-                    onClick = { color -> onClick(color) }
+                    onClick = onClick
                 )
 
-                // Небольшой отступ между палитрой и слайдером
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Слайдер толщины линии (справа)
                 CustomSlider(
                     modifier = Modifier.weight(1f),
-                    onChange = { lineWidth -> onLineWidthChange(lineWidth) }
+                    onChange = onLineWidthChange
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(5.dp))
     }
 }
+
+/* ───────────────── цветовая палитра ───────────────── */
 
 @Composable
 fun ColorList(
@@ -131,11 +158,14 @@ fun ColorList(
     onClick: (Color) -> Unit
 ) {
     val colors = listOf(
-        Color.Blue,
-        Color.Red,
-        Color.Yellow,
-        Color.Green,
         Color.Black,
+        Color.DarkGray,
+        Color.Red,
+        Color.Magenta,
+        Color.Blue,
+        Color.Cyan,
+        Color.Green,
+        Color.Yellow,
         Color.White
     )
 
@@ -147,13 +177,16 @@ fun ColorList(
             Box(
                 modifier = Modifier
                     .padding(end = 8.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(color)
                     .clickable { onClick(color) }
-                    .size(40.dp)
-                    .background(color, CircleShape)
             )
         }
     }
 }
+
+/* ───────────────── слайдер толщины ───────────────── */
 
 @Composable
 fun CustomSlider(
@@ -177,12 +210,12 @@ fun CustomSlider(
             .padding(horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Width: ${(position * 100).toInt()}")
+        Text("Толщина: ${(position * 100).toInt()}")
         Slider(
             modifier = Modifier.fillMaxWidth(),
             value = position,
             onValueChange = {
-                val tempPos = if (it > 0) it else 0.01f
+                val tempPos = if (it > 0f) it else 0.01f
                 position = tempPos
                 onChange(tempPos * 100)
             }
@@ -190,110 +223,24 @@ fun CustomSlider(
     }
 }
 
+/* ───────────────── общая кнопка-иконка ───────────────── */
+
 @Composable
-fun ButtonPanel(
-    onBackClick: () -> Unit,
-    onColorToggle: () -> Unit,
-    onSaveClick: (String) -> Unit,
-    onEraserClick: () -> Unit,
-    onClearAllClick: () -> Unit,
-    onPanModeToggle: () -> Unit,
-    isPanMode: Boolean
-)
+private fun ToolIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    highlighted: Boolean = false
+) {
+    val bgColor = if (highlighted) Color(0xFFEEEEEE) else Color.White
 
- {
-    var showSaveMenu by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    IconButton(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(bgColor),
+        onClick = onClick
     ) {
-        // Кнопка "Назад"
-        IconButton(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(Color.White),
-            onClick = onBackClick
-        ) {
-            Icon(Icons.Default.Undo, contentDescription = "Undo")
-        }
-
-        // Кнопка "Цвета"
-        IconButton(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(Color.White),
-            onClick = onColorToggle
-        ) {
-            Icon(Icons.Default.Create, contentDescription = "Color palette")
-        }
-
-        // Кнопка "Сохранить"
-        Box {
-            IconButton(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(Color.White),
-                onClick = { showSaveMenu = true }
-            ) {
-                Icon(Icons.Default.Share, contentDescription = "Save drawing")
-            }
-
-            androidx.compose.material3.DropdownMenu(
-                expanded = showSaveMenu,
-                onDismissRequest = { showSaveMenu = false }
-            ) {
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text("Сохранить как PNG") },
-                    onClick = {
-                        showSaveMenu = false
-                        onSaveClick("png")
-                    }
-                )
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text("Сохранить как SVG") },
-                    onClick = {
-                        showSaveMenu = false
-                        onSaveClick("svg")
-                    }
-                )
-            }
-        }
-
-        // Кнопка "Ластик"
-        IconButton(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(Color.White),
-            onClick = onEraserClick
-        ) {
-            Icon(Icons.Default.AutoFixOff, contentDescription = "Eraser")
-        }
-
-        //Стереть все
-        IconButton(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(Color.White),
-            onClick = onClearAllClick
-        ) {
-            Icon(Icons.Default.Delete, contentDescription = "Clear all")
-        }
-
-
-        // Режим "рука" (панорамирование)
-        IconButton(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(if (isPanMode) Color.DarkGray else Color.White),
-            onClick = onPanModeToggle
-        ) {
-            Icon(
-                imageVector = Icons.Default.PanTool,
-                contentDescription = if (isPanMode) "Disable pan mode" else "Enable pan mode"
-            )
-        }
-
+        Icon(icon, contentDescription = contentDescription, tint = Color.Black)
     }
 }
-
