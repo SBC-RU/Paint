@@ -85,6 +85,12 @@ class MainActivity : ComponentActivity() {
                                 // Ластик
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(color = Color(0xFFFAFAFA))
+                            },
+                            {
+                                // Стереть всё
+                                viewModel.pathList.clear()
+                                // по желанию можно ещё обнулить текущий путь:
+                                // viewModel.currentPathData.value = viewModel.currentPathData.value.copy(path = Path())
                             }
                         )
                     }

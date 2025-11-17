@@ -43,9 +43,11 @@ fun BottomPanel(
     onClick: (Color) -> Unit,
     onLineWidthChange: (Float) -> Unit,
     onBackClick: () -> Unit,
-    onSaveClick: (String) -> Unit,   // ← ИЗМЕНЕНО
-    onEraserClick: () -> Unit
+    onSaveClick: (String) -> Unit,
+    onEraserClick: () -> Unit,
+    onClearAllClick: () -> Unit
 )
+
 {
     // состояние для отображения палитры
     var showColorPalette by remember { mutableStateOf(false) }
@@ -71,13 +73,13 @@ fun BottomPanel(
                 onBackClick = onBackClick,
                 onColorToggle = { showColorPalette = !showColorPalette },
                 onSaveClick = { format ->
-                    // Лог в консоль, как и был
                     println("Пользователь выбрал сохранение как $format")
-                    // И ПЛЮС вызов реального обработчика из MainActivity
                     onSaveClick(format)
                 },
-                onEraserClick = onEraserClick
+                onEraserClick = onEraserClick,
+                onClearAllClick = onClearAllClick       // стереть все
             )
+
 
 
         }
@@ -186,8 +188,10 @@ fun ButtonPanel(
     onBackClick: () -> Unit,
     onColorToggle: () -> Unit,
     onSaveClick: (String) -> Unit,
-    onEraserClick: () -> Unit
-) {
+    onEraserClick: () -> Unit,
+    onClearAllClick: () -> Unit
+)
+ {
     var showSaveMenu by remember { mutableStateOf(false) }
 
     Row(
@@ -254,6 +258,16 @@ fun ButtonPanel(
             onClick = onEraserClick
         ) {
             Icon(Icons.Default.AutoFixOff, contentDescription = "Eraser")
+        }
+
+        //Стереть все
+        IconButton(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(Color.White),
+            onClick = onClearAllClick
+        ) {
+            Icon(Icons.Default.Delete, contentDescription = "Clear all")
         }
     }
 }
