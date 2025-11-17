@@ -34,6 +34,10 @@ fun BottomPanel(
     var showColorPalette by remember { mutableStateOf(false) }
     var showSaveMenu by remember { mutableStateOf(false) }
 
+
+    var showRgbPicker by remember { mutableStateOf(false) } //RGB
+    var customColor by remember { mutableStateOf(Color.Black) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -136,7 +140,8 @@ fun BottomPanel(
             ) {
                 ColorList(
                     modifier = Modifier.weight(1f),
-                    onClick = onClick
+                    onClick = onClick,
+                    onCustomColorClick = { showRgbPicker = true }
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -147,6 +152,19 @@ fun BottomPanel(
                 )
             }
         }
+        // Диалог выбора RGB-цвета
+        if (showRgbPicker) {
+            RgbColorPickerDialog(
+                initialColor = customColor,
+                onColorSelected = { color ->
+                    customColor = color
+                    onClick(color)        // применяем выбранный цвет к кисти
+                    showRgbPicker = false
+                },
+                onDismiss = { showRgbPicker = false }
+            )
+        }
+
     }
 }
 
@@ -155,7 +173,8 @@ fun BottomPanel(
 @Composable
 fun ColorList(
     modifier: Modifier = Modifier,
-    onClick: (Color) -> Unit
+    onClick: (Color) -> Unit,
+    onCustomColorClick: () -> Unit
 ) {
     val colors = listOf(
         Color.Black,
@@ -183,8 +202,24 @@ fun ColorList(
                     .clickable { onClick(color) }
             )
         }
+
+        // кружок для кастомного цвета (RGB)
+        item {
+            Box(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .clickable { onCustomColorClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("RGB", style = MaterialTheme.typography.labelSmall)
+            }
+        }
     }
 }
+
 
 /* ───────────────── слайдер толщины ───────────────── */
 
@@ -244,3 +279,66 @@ private fun ToolIconButton(
         Icon(icon, contentDescription = contentDescription, tint = Color.Black)
     }
 }
+
+@Composable
+fun RgbColorPickerDialog(
+    initialColor: Color,
+    onColorSelected: (Color) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var r by remember { mutableStateOf(initialColor.red) }   // 0f..1f
+    var g by remember { mutableStateOf(initialColor.green) }
+    var b by remember { mutableStateOf(initialColor.blue) }
+
+    val previewColor = Color(r, g, b)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onColorSelected(previewColor) }) {
+                Text("Готово")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        },
+        title = { Text("Выбор цвета (RGB)") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // превью выбранного цвета
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(previewColor)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text("R: ${(r * 255).toInt()}")
+                Slider(
+                    value = r,
+                    onValueChange = { r = it }
+                )
+
+                Text("G: ${(g * 255).toInt()}")
+                Slider(
+                    value = g,
+                    onValueChange = { g = it }
+                )
+
+                Text("B: ${(b * 255).toInt()}")
+                Slider(
+                    value = b,
+                    onValueChange = { b = it }
+                )
+            }
+        }
+    )
+}
+
