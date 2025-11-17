@@ -26,6 +26,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.CompositionLocalProvider
 import com.example.paint.MainViewModel
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.graphics.drawscope.scale
 
 import androidx.compose.ui.platform.LocalContext
 import android.util.DisplayMetrics
@@ -63,14 +65,20 @@ class MainActivity : ComponentActivity() {
                     ) {
                         BottomPanel(
                             onClick = { color ->
+                                // любой выбор цвета выключает "руку"
+                                isPanMode = false
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(color = color)
                             },
                             onLineWidthChange = { lineWidth ->
+                                // при изменении толщины можно тоже отключать "руку" (по желанию)
+                                isPanMode = false
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(lineWidth = lineWidth)
                             },
                             onBackClick = {
+                                // при Undo можно тоже сбрасывать "руку", если хочешь
+                                // isPanMode = false
                                 if (viewModel.pathList.isNotEmpty()) {
                                     val last = viewModel.pathList.last()
                                     viewModel.pathList.removeIf { it == last }
@@ -83,17 +91,22 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onEraserClick = {
+                                // включили ластик → точно рисуем, а не двигаем холст
+                                isPanMode = false
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(color = Color(0xFFFAFAFA))
                             },
                             onClearAllClick = {
+                                // можно тоже сбрасывать "руку"
+                                // isPanMode = false
                                 viewModel.pathList.clear()
                             },
                             onPanModeToggle = {
-                                isPanMode = !isPanMode                // ← ПЕРЕКЛЮЧАЕМ РЕЖИМ
+                                isPanMode = !isPanMode
                             },
-                            isPanMode = isPanMode                     // ← ЧТОБЫ КНОПКА МЕНЯЛА ВИД/ЦВЕТ
+                            isPanMode = isPanMode
                         )
+
                     }
                 }
             }
@@ -108,16 +121,18 @@ fun PaintCanvas(
     pathList: SnapshotStateList<PathData>,
     isPanMode: Boolean
 ) {
-    // смещение холста (режим "рука")
+    // смещение "камеры" в мировых координатах
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
 
-    // временный Path для текущего мазка (один и тот же, переиспользуем)
+    // масштаб
+    var scale by remember { mutableStateOf(1f) }
+
+    // временный Path для текущего мазка
     val tempPath = remember { Path() }
-    // данные текущего мазка (цвет, ширина и т.д.)
     var currentStrokeData by remember { mutableStateOf<PathData?>(null) }
 
-    // счётчик для триггера перерисовки
+    // просто чтобы Canvas реагировал на движения
     var drawVersion by remember { mutableStateOf(0) }
 
     Canvas(
@@ -126,82 +141,90 @@ fun PaintCanvas(
             .padding(top = 100.dp)
             .navigationBarsPadding()
             .clipToBounds()
-            .pointerInput(isPanMode) {
-                detectDragGestures(
-                    onDragStart = { start ->
-                        if (!isPanMode) {
-                            // начинаем новый мазок
+            .pointerInput(isPanMode, scale) {
+                if (isPanMode) {
+                    // РЕЖИМ "РУКА": панорамирование + pinch-zoom
+                    detectTransformGestures { _, pan, zoomChange, _ ->
+                        // pan приходит в экранных координатах → переводим в мировые
+                        offsetX += pan.x / scale
+                        offsetY += pan.y / scale
+
+                        // масштаб
+                        scale = (scale * zoomChange).coerceIn(0.5f, 4f)
+
+                        drawVersion++
+                    }
+                } else {
+                    // РЕЖИМ РИСОВАНИЯ: один палец, без зума/пана
+                    detectDragGestures(
+                        onDragStart = { start ->
                             tempPath.reset()
-                            tempPath.moveTo(start.x - offsetX, start.y - offsetY)
+
+                            // экран → мировые координаты
+                            val worldX = start.x / scale - offsetX
+                            val worldY = start.y / scale - offsetY
+                            tempPath.moveTo(worldX, worldY)
+
                             currentStrokeData = pathData1.value
-                            drawVersion++ // попросить Canvas перерисоваться
-                        }
-                    },
-                    onDragEnd = {
-                        if (!isPanMode) {
+                            drawVersion++
+                        },
+                        onDragEnd = {
                             currentStrokeData?.let { data ->
-                                // создаём КОПИЮ пути для списка,
-                                // чтобы не зависеть от tempPath
+                                // копируем путь в список, чтобы tempPath можно было переиспользовать
                                 val pathForList = Path().apply { addPath(tempPath) }
                                 pathList.add(data.copy(path = pathForList))
                             }
+                            currentStrokeData = null
+                            drawVersion++
+                        },
+                        onDragCancel = {
+                            currentStrokeData = null
+                            drawVersion++
                         }
-                        currentStrokeData = null
-                        drawVersion++
-                    },
-                    onDragCancel = {
-                        currentStrokeData = null
-                        drawVersion++
-                    }
-                ) { change, dragAmount ->
-                    if (isPanMode) {
-                        // режим "рука" — двигаем холст
-                        offsetX += dragAmount.x
-                        offsetY += dragAmount.y
-                        drawVersion++
-                    } else {
+                    ) { change, _ ->
                         val data = currentStrokeData ?: return@detectDragGestures
-                        // продолжаем линию (координаты относительно холста)
-                        tempPath.lineTo(
-                            change.position.x - offsetX,
-                            change.position.y - offsetY
-                        )
-                        drawVersion++ // снова просим перерисовать
+                        val worldX = change.position.x / scale - offsetX
+                        val worldY = change.position.y / scale - offsetY
+                        tempPath.lineTo(worldX, worldY)
+                        drawVersion++
                     }
                 }
             }
     ) {
-        // ЧИТАЕМ переменную, чтобы Canvas "подписался" на её изменения
-        val dummyVersion = drawVersion
+        // подписываем Canvas на drawVersion
+        val dummy = drawVersion
 
-        // рисуем с учётом смещения холста
-        translate(left = offsetX, top = offsetY) {
-            // уже завершённые мазки
-            pathList.forEach { pathData ->
-                drawPath(
-                    pathData.path,
-                    color = pathData.color,
-                    style = Stroke(
-                        pathData.lineWidth,
-                        cap = StrokeCap.Round
+        // сначала масштаб, потом смещение "камеры"
+        scale(scale) {
+            translate(left = offsetX, top = offsetY) {
+                // все завершённые мазки
+                pathList.forEach { pathData ->
+                    drawPath(
+                        pathData.path,
+                        color = pathData.color,
+                        style = Stroke(
+                            pathData.lineWidth,
+                            cap = StrokeCap.Round
+                        )
                     )
-                )
-            }
+                }
 
-            // текущий незавершённый мазок
-            val data = currentStrokeData
-            if (data != null) {
-                drawPath(
-                    tempPath,
-                    color = data.color,
-                    style = Stroke(
-                        data.lineWidth,
-                        cap = StrokeCap.Round
+                // текущий незавершённый мазок
+                val data = currentStrokeData
+                if (data != null) {
+                    drawPath(
+                        tempPath,
+                        color = data.color,
+                        style = Stroke(
+                            data.lineWidth,
+                            cap = StrokeCap.Round
+                        )
                     )
-                )
+                }
             }
         }
     }
 }
+
 
 

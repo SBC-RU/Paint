@@ -90,7 +90,14 @@ fun BottomPanel(
                 ToolIconButton(
                     icon = Icons.Default.Create,
                     contentDescription = "Brush & colors",
-                    onClick = { showColorPalette = !showColorPalette }
+                    onClick = {
+                        // если сейчас активен режим "рука" — отключаем его
+                        if (isPanMode) {
+                            onPanModeToggle()
+                        }
+                        // и открываем/закрываем палитру
+                        showColorPalette = !showColorPalette
+                    }
                 )
 
                 // Ластик
@@ -402,7 +409,6 @@ fun ColorPaletteDialog(
     var selectorPos by remember { mutableStateOf(Offset.Zero) }
     var paletteSize by remember { mutableStateOf(Size.Zero) }
 
-    // Инициализация по текущему цвету
     LaunchedEffect(initialColor) {
         val hsv = FloatArray(3)
         android.graphics.Color.colorToHSV(initialColor.toArgb(), hsv)
@@ -415,9 +421,7 @@ fun ColorPaletteDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = {
-                onColorSelected(selectedColor)
-            }) {
+            TextButton(onClick = { onColorSelected(selectedColor) }) {
                 Text("Готово")
             }
         },
@@ -426,16 +430,25 @@ fun ColorPaletteDialog(
                 Text("Отмена")
             }
         },
-        title = { Text("Выбор цвета") },
+        // ВАЖНО: title убираем, всё рисуем в text
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Квадрат палитры
+                // Заголовок внутри, всегда видно
+                Text(
+                    text = "Выбор цвета",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                // Квадрат палитры, с ограничением высоты
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1f)
+                        .heightIn(max = 260.dp)     // фиксируем максимум по высоте
+                        .aspectRatio(1f)            // стараемся держать квадрат
                         .clip(RoundedCornerShape(8.dp))
                         .pointerInput(Unit) {
                             detectDragGestures { change, _ ->
@@ -446,14 +459,14 @@ fun ColorPaletteDialog(
                                 selectorPos = Offset(x, y)
 
                                 hue = (x / w) * 360f
-                                value = 1f - (y / h)      // сверху ярко, снизу темно
+                                value = 1f - (y / h)
                             }
                         }
                 ) {
                     Canvas(Modifier.matchParentSize()) {
                         paletteSize = size
 
-                        // Горизонтальный градиент – все цвета радуги
+                        // радуга по горизонтали
                         drawRect(
                             brush = Brush.horizontalGradient(
                                 listOf(
@@ -469,7 +482,7 @@ fun ColorPaletteDialog(
                             size = size
                         )
 
-                        // Вертикальный градиент – затемнение вниз
+                        // затемнение вниз
                         drawRect(
                             brush = Brush.verticalGradient(
                                 listOf(Color.Transparent, Color.Black)
@@ -477,7 +490,6 @@ fun ColorPaletteDialog(
                             size = size
                         )
 
-                        // Позиция маркера
                         val px = if (selectorPos == Offset.Zero)
                             (hue / 360f).coerceIn(0f, 1f) * size.width
                         else selectorPos.x
@@ -498,7 +510,7 @@ fun ColorPaletteDialog(
                     }
                 }
 
-                // Превью выбранного цвета
+                // превью выбранного цвета
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -510,5 +522,6 @@ fun ColorPaletteDialog(
         }
     )
 }
+
 
 
