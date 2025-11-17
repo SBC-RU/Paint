@@ -28,6 +28,8 @@ import com.example.paint.MainViewModel
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.withTransform
 
 import androidx.compose.ui.platform.LocalContext
 import android.util.DisplayMetrics
@@ -121,9 +123,8 @@ fun PaintCanvas(
     pathList: SnapshotStateList<PathData>,
     isPanMode: Boolean
 ) {
-    // смещение "камеры" в мировых координатах
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
+    // смещение "камеры" в экранных координатах
+    var offset by remember { mutableStateOf(Offset.Zero) }
 
     // масштаб
     var scale by remember { mutableStateOf(1f) }
@@ -132,7 +133,7 @@ fun PaintCanvas(
     val tempPath = remember { Path() }
     var currentStrokeData by remember { mutableStateOf<PathData?>(null) }
 
-    // просто чтобы Canvas реагировал на движения
+    // чтобы Canvas реагировал на изменения tempPath/scale/offset
     var drawVersion by remember { mutableStateOf(0) }
 
     Canvas(
@@ -141,36 +142,34 @@ fun PaintCanvas(
             .padding(top = 100.dp)
             .navigationBarsPadding()
             .clipToBounds()
-            .pointerInput(isPanMode, scale) {
+            .pointerInput(isPanMode) {
                 if (isPanMode) {
-                    // РЕЖИМ "РУКА": панорамирование + pinch-zoom
-                    detectTransformGestures { _, pan, zoomChange, _ ->
-                        // pan приходит в экранных координатах → переводим в мировые
-                        offsetX += pan.x / scale
-                        offsetY += pan.y / scale
+                    detectTransformGestures { centroid, pan, zoomChange, _ ->
+                        val oldScale = scale
+                        val newScale = (scale * zoomChange).coerceIn(0.5f, 4f)
 
-                        // масштаб
-                        scale = (scale * zoomChange).coerceIn(0.5f, 4f)
+                        // мировая точка под центром жеста ДО зума
+                        val worldBefore = (centroid - offset) / oldScale
+                        // хотим, чтобы ПОСЛЕ зума эта же точка осталась под centroid
+                        offset = centroid - worldBefore * newScale
+
+                        // плюс pan (он уже в экранных координатах)
+                        offset += pan
+                        scale = newScale
 
                         drawVersion++
                     }
                 } else {
-                    // РЕЖИМ РИСОВАНИЯ: один палец, без зума/пана
                     detectDragGestures(
                         onDragStart = { start ->
                             tempPath.reset()
-
-                            // экран → мировые координаты
-                            val worldX = start.x / scale - offsetX
-                            val worldY = start.y / scale - offsetY
-                            tempPath.moveTo(worldX, worldY)
-
+                            val world = (start - offset) / scale
+                            tempPath.moveTo(world.x, world.y)
                             currentStrokeData = pathData1.value
                             drawVersion++
                         },
                         onDragEnd = {
                             currentStrokeData?.let { data ->
-                                // копируем путь в список, чтобы tempPath можно было переиспользовать
                                 val pathForList = Path().apply { addPath(tempPath) }
                                 pathList.add(data.copy(path = pathForList))
                             }
@@ -183,48 +182,50 @@ fun PaintCanvas(
                         }
                     ) { change, _ ->
                         val data = currentStrokeData ?: return@detectDragGestures
-                        val worldX = change.position.x / scale - offsetX
-                        val worldY = change.position.y / scale - offsetY
-                        tempPath.lineTo(worldX, worldY)
+                        val world = (change.position - offset) / scale
+                        tempPath.lineTo(world.x, world.y)
                         drawVersion++
                     }
                 }
             }
     ) {
-        // подписываем Canvas на drawVersion
-        val dummy = drawVersion
+        // подписываемся на изменения, чтобы Canvas перерисовывался
+        val dummyVersion = drawVersion
 
-        // сначала масштаб, потом смещение "камеры"
-        scale(scale) {
-            translate(left = offsetX, top = offsetY) {
-                // все завершённые мазки
-                pathList.forEach { pathData ->
-                    drawPath(
-                        pathData.path,
-                        color = pathData.color,
-                        style = Stroke(
-                            pathData.lineWidth,
-                            cap = StrokeCap.Round
-                        )
+        withTransform({
+            // ✨ ВАЖНО: СНАЧАЛА масштаб, ПОТОМ сдвиг
+            scale(scale)
+            translate(offset.x, offset.y)
+        }) {
+            // все завершённые мазки
+            pathList.forEach { pathData ->
+                drawPath(
+                    pathData.path,
+                    color = pathData.color,
+                    style = Stroke(
+                        pathData.lineWidth,
+                        cap = StrokeCap.Round
                     )
-                }
+                )
+            }
 
-                // текущий незавершённый мазок
-                val data = currentStrokeData
-                if (data != null) {
-                    drawPath(
-                        tempPath,
-                        color = data.color,
-                        style = Stroke(
-                            data.lineWidth,
-                            cap = StrokeCap.Round
-                        )
+            // текущий незавершённый мазок
+            val data = currentStrokeData
+            if (data != null) {
+                drawPath(
+                    tempPath,
+                    color = data.color,
+                    style = Stroke(
+                        data.lineWidth,
+                        cap = StrokeCap.Round
                     )
-                }
+                )
             }
         }
     }
+
 }
+
 
 
 
