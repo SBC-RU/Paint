@@ -25,6 +25,7 @@ import androidx.activity.viewModels
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.CompositionLocalProvider
 import com.example.paint.MainViewModel
+import androidx.compose.ui.graphics.drawscope.translate
 
 import androidx.compose.ui.platform.LocalContext
 import android.util.DisplayMetrics
@@ -40,15 +41,20 @@ class MainActivity : ComponentActivity() {
             val viewModel: MainViewModel by viewModels()
             val context = LocalContext.current
 
-            // размеры экрана в px (для экспорта)
             val displayMetrics: DisplayMetrics = context.resources.displayMetrics
             val widthPx = displayMetrics.widthPixels
             val heightPx = displayMetrics.heightPixels
 
+            var isPanMode by remember { mutableStateOf(false) }  // ← НОВОЕ
+
             PaintTheme {
                 Box(modifier = Modifier.fillMaxSize()) {
 
-                    PaintCanvas(viewModel.currentPathData, viewModel.pathList)
+                    PaintCanvas(
+                        pathData1 = viewModel.currentPathData,
+                        pathList = viewModel.pathList,
+                        isPanMode = isPanMode                   // ← ПЕРЕДАЁМ
+                    )
 
                     Box(
                         modifier = Modifier
@@ -56,42 +62,37 @@ class MainActivity : ComponentActivity() {
                             .padding(top = 40.dp)
                     ) {
                         BottomPanel(
-                            { color ->
+                            onClick = { color ->
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(color = color)
                             },
-                            { lineWidth ->
+                            onLineWidthChange = { lineWidth ->
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(lineWidth = lineWidth)
                             },
-                            {
+                            onBackClick = {
                                 if (viewModel.pathList.isNotEmpty()) {
                                     val last = viewModel.pathList.last()
                                     viewModel.pathList.removeIf { it == last }
                                 }
                             },
-                            { format ->
+                            onSaveClick = { format ->
                                 when (format) {
-                                    "png" -> {
-                                        saveDrawingAsPng(context, viewModel.pathList, widthPx, heightPx)
-                                    }
-                                    "svg" -> {
-                                        saveDrawingAsSvg(context, viewModel.pathList, widthPx, heightPx)
-                                    }
+                                    "png" -> saveDrawingAsPng(context, viewModel.pathList, widthPx, heightPx)
+                                    "svg" -> saveDrawingAsSvg(context, viewModel.pathList, widthPx, heightPx)
                                 }
                             },
-
-                            {
-                                // Ластик
+                            onEraserClick = {
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(color = Color(0xFFFAFAFA))
                             },
-                            {
-                                // Стереть всё
+                            onClearAllClick = {
                                 viewModel.pathList.clear()
-                                // по желанию можно ещё обнулить текущий путь:
-                                // viewModel.currentPathData.value = viewModel.currentPathData.value.copy(path = Path())
-                            }
+                            },
+                            onPanModeToggle = {
+                                isPanMode = !isPanMode                // ← ПЕРЕКЛЮЧАЕМ РЕЖИМ
+                            },
+                            isPanMode = isPanMode                     // ← ЧТОБЫ КНОПКА МЕНЯЛА ВИД/ЦВЕТ
                         )
                     }
                 }
@@ -102,8 +103,15 @@ class MainActivity : ComponentActivity() {
 
 
 @Composable
-fun PaintCanvas(pathData1: MutableState<PathData>, pathList: SnapshotStateList<PathData>) {
-    var tempPath = Path()
+fun PaintCanvas(
+    pathData1: MutableState<PathData>,
+    pathList: SnapshotStateList<PathData>,
+    isPanMode: Boolean
+) {
+    var tempPath by remember { mutableStateOf(Path()) }
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
+
 
     Canvas(
         modifier = Modifier
@@ -111,51 +119,60 @@ fun PaintCanvas(pathData1: MutableState<PathData>, pathList: SnapshotStateList<P
             .padding(top = 100.dp)
             .navigationBarsPadding()
             .clipToBounds()
-            .pointerInput(true) {
+            .pointerInput(isPanMode) {
                 detectDragGestures(
-                    onDragStart = {
-                        tempPath = Path()
+                    onDragStart = { _ ->
+                        if (!isPanMode) {
+                            tempPath = Path()
+                        }
                     },
                     onDragEnd = {
+                        if (!isPanMode) {
+                            pathList.add(
+                                pathData1.value.copy(
+                                    path = tempPath
+                                )
+                            )
+                        }
+                    }
+                ) { change, dragAmount ->
+                    if (isPanMode) {
+                        // Режим "рука" — двигаем холст
+                        offsetX += dragAmount.x
+                        offsetY += dragAmount.y
+                    } else {
+                        // Обычный режим — рисуем, но учитываем смещение холста
+                        val startX = change.position.x - dragAmount.x - offsetX
+                        val startY = change.position.y - dragAmount.y - offsetY
+                        val endX = change.position.x - offsetX
+                        val endY = change.position.y - offsetY
+
+                        tempPath.moveTo(startX, startY)
+                        tempPath.lineTo(endX, endY)
+
                         pathList.add(
                             pathData1.value.copy(
                                 path = tempPath
                             )
                         )
-
                     }
-                ) { change, dragAmount ->
-                    tempPath.moveTo(
-                        change.position.x - dragAmount.x,
-                        change.position.y - dragAmount.y
-                    )
-                    tempPath.lineTo(
-                        change.position.x,
-                        change.position.y
-                    )
-
-                    if (pathList.size > 0) { //0 было, 1 стало.
-                        //фикс бага #1
-                        //pathList.removeAt(pathList.size - 1)
-                    }
-
-                    pathList.add(
-                        pathData1.value.copy(
-                            path = tempPath
-                        )
-                    )
                 }
             }
     ) {
-        pathList.forEach { pathData ->
-            drawPath(
-                pathData.path,
-                color = pathData.color,
-                style = Stroke(
-                    pathData.lineWidth,
-                    cap = StrokeCap.Round
+        // Рисуем с учетом смещения холста
+        translate(left = offsetX, top = offsetY) {
+            pathList.forEach { pathData ->
+                drawPath(
+                    pathData.path,
+                    color = pathData.color,
+                    style = Stroke(
+                        pathData.lineWidth,
+                        cap = StrokeCap.Round
+                    )
                 )
-            )
+            }
         }
+
     }
+
 }

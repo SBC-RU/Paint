@@ -38,6 +38,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 
+
+import androidx.compose.material.icons.filled.PanTool
+
 @Composable
 fun BottomPanel(
     onClick: (Color) -> Unit,
@@ -45,8 +48,11 @@ fun BottomPanel(
     onBackClick: () -> Unit,
     onSaveClick: (String) -> Unit,
     onEraserClick: () -> Unit,
-    onClearAllClick: () -> Unit
+    onClearAllClick: () -> Unit,      // уже есть у тебя
+    onPanModeToggle: () -> Unit,      // переключатель режима «рука»
+    isPanMode: Boolean                // текущее состояние
 )
+
 
 {
     // состояние для отображения палитры
@@ -77,9 +83,10 @@ fun BottomPanel(
                     onSaveClick(format)
                 },
                 onEraserClick = onEraserClick,
-                onClearAllClick = onClearAllClick       // стереть все
+                onClearAllClick = onClearAllClick,
+                onPanModeToggle = onPanModeToggle,
+                isPanMode = isPanMode
             )
-
 
 
         }
@@ -189,8 +196,11 @@ fun ButtonPanel(
     onColorToggle: () -> Unit,
     onSaveClick: (String) -> Unit,
     onEraserClick: () -> Unit,
-    onClearAllClick: () -> Unit
+    onClearAllClick: () -> Unit,
+    onPanModeToggle: () -> Unit,
+    isPanMode: Boolean
 )
+
  {
     var showSaveMenu by remember { mutableStateOf(false) }
 
@@ -269,6 +279,21 @@ fun ButtonPanel(
         ) {
             Icon(Icons.Default.Delete, contentDescription = "Clear all")
         }
+
+
+        // Режим "рука" (панорамирование)
+        IconButton(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(if (isPanMode) Color.DarkGray else Color.White),
+            onClick = onPanModeToggle
+        ) {
+            Icon(
+                imageVector = Icons.Default.PanTool,
+                contentDescription = if (isPanMode) "Disable pan mode" else "Enable pan mode"
+            )
+        }
+
     }
 }
 
