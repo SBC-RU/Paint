@@ -20,6 +20,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.LaunchedEffect
+
+
+
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
+
 @Composable
 fun BottomPanel(
     onClick: (Color) -> Unit,
@@ -37,6 +52,10 @@ fun BottomPanel(
 
     var showRgbPicker by remember { mutableStateOf(false) } //RGB
     var customColor by remember { mutableStateOf(Color.Black) }
+
+    // новый стейт для квадрата-палитры
+    var showColorPicker by remember { mutableStateOf(false) }
+
 
     Column(
         modifier = Modifier
@@ -140,8 +159,11 @@ fun BottomPanel(
             ) {
                 ColorList(
                     modifier = Modifier.weight(1f),
-                    onClick = onClick,
-                    onCustomColorClick = { showRgbPicker = true }
+                    onClick = { color ->
+                        customColor = color
+                        onClick(color)
+                    },
+                    onCustomPaletteClick = { showColorPicker = true }
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -152,6 +174,20 @@ fun BottomPanel(
                 )
             }
         }
+
+        if (showColorPicker) {
+            ColorPaletteDialog(
+                initialColor = customColor,
+                onColorSelected = { color ->
+                    customColor = color
+                    onClick(color)          // применяем к кисти
+                    showColorPicker = false
+                },
+                onDismiss = { showColorPicker = false }
+            )
+        }
+
+
         // Диалог выбора RGB-цвета
         if (showRgbPicker) {
             RgbColorPickerDialog(
@@ -174,7 +210,7 @@ fun BottomPanel(
 fun ColorList(
     modifier: Modifier = Modifier,
     onClick: (Color) -> Unit,
-    onCustomColorClick: () -> Unit
+    onCustomPaletteClick: () -> Unit
 ) {
     val colors = listOf(
         Color.Black,
@@ -192,6 +228,32 @@ fun ColorList(
         modifier = modifier
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
+        // 🔵 ПЕРВЫЙ круг – палитра
+        item {
+            Box(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            listOf(
+                                Color.Red,
+                                Color.Yellow,
+                                Color.Green,
+                                Color.Cyan,
+                                Color.Blue,
+                                Color.Magenta,
+                                Color.Red
+                            )
+                        )
+                    )
+                    .border(1.dp, Color.DarkGray, CircleShape)
+                    .clickable { onCustomPaletteClick() }
+            )
+        }
+
+        // Дальше – обычные фиксированные цвета
         items(colors) { color ->
             Box(
                 modifier = Modifier
@@ -202,23 +264,9 @@ fun ColorList(
                     .clickable { onClick(color) }
             )
         }
-
-        // кружок для кастомного цвета (RGB)
-        item {
-            Box(
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .clickable { onCustomColorClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("RGB", style = MaterialTheme.typography.labelSmall)
-            }
-        }
     }
 }
+
 
 
 /* ───────────────── слайдер толщины ───────────────── */
@@ -341,4 +389,126 @@ fun RgbColorPickerDialog(
         }
     )
 }
+
+
+@Composable
+fun ColorPaletteDialog(
+    initialColor: Color,
+    onColorSelected: (Color) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var hue by remember { mutableStateOf(0f) }    // 0..360
+    var value by remember { mutableStateOf(1f) }  // 0..1 (яркость)
+    var selectorPos by remember { mutableStateOf(Offset.Zero) }
+    var paletteSize by remember { mutableStateOf(Size.Zero) }
+
+    // Инициализация по текущему цвету
+    LaunchedEffect(initialColor) {
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(initialColor.toArgb(), hsv)
+        hue = hsv[0]
+        value = hsv[2]
+    }
+
+    val selectedColor = Color.hsv(hue, 1f, value)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                onColorSelected(selectedColor)
+            }) {
+                Text("Готово")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        },
+        title = { Text("Выбор цвета") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Квадрат палитры
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, _ ->
+                                val w = paletteSize.width.coerceAtLeast(1f)
+                                val h = paletteSize.height.coerceAtLeast(1f)
+                                val x = change.position.x.coerceIn(0f, w)
+                                val y = change.position.y.coerceIn(0f, h)
+                                selectorPos = Offset(x, y)
+
+                                hue = (x / w) * 360f
+                                value = 1f - (y / h)      // сверху ярко, снизу темно
+                            }
+                        }
+                ) {
+                    Canvas(Modifier.matchParentSize()) {
+                        paletteSize = size
+
+                        // Горизонтальный градиент – все цвета радуги
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                listOf(
+                                    Color.Red,
+                                    Color.Yellow,
+                                    Color.Green,
+                                    Color.Cyan,
+                                    Color.Blue,
+                                    Color.Magenta,
+                                    Color.Red
+                                )
+                            ),
+                            size = size
+                        )
+
+                        // Вертикальный градиент – затемнение вниз
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Black)
+                            ),
+                            size = size
+                        )
+
+                        // Позиция маркера
+                        val px = if (selectorPos == Offset.Zero)
+                            (hue / 360f).coerceIn(0f, 1f) * size.width
+                        else selectorPos.x
+
+                        val py = if (selectorPos == Offset.Zero)
+                            (1f - value).coerceIn(0f, 1f) * size.height
+                        else selectorPos.y
+
+                        val markerCenter = Offset(px, py)
+                        val radius = 8.dp.toPx()
+
+                        drawCircle(
+                            color = Color.White,
+                            radius = radius,
+                            center = markerCenter,
+                            style = Stroke(width = 2.dp.toPx())
+                        )
+                    }
+                }
+
+                // Превью выбранного цвета
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(selectedColor)
+                )
+            }
+        }
+    )
+}
+
 
