@@ -52,26 +52,24 @@ fun PaintCanvas(
             .clipToBounds()
             .pointerInput(isPanMode) {
                 if (isPanMode) {
-                    detectTransformGestures { centroid, pan, zoomChange, _ ->
+                    detectTransformGestures { _, pan, zoomChange, _ ->
                         val oldScale = scale
-                        val newScale = (scale * zoomChange).coerceIn(0.5f, 4f)
 
-                        // мировая точка под центром жеста ДО зума
-                        val worldBefore = (centroid - offset) / oldScale
-                        // хотим, чтобы ПОСЛЕ зума эта же точка осталась под centroid
-                        offset = centroid - worldBefore * newScale
+                        // панорамирование: pan приходит в экранных координатах → переводим в world
+                        offset += pan / oldScale
 
-                        // плюс pan (он уже в экранных координатах)
-                        offset += pan
-                        scale = newScale
+                        // зум просто меняем
+                        scale = (scale * zoomChange).coerceIn(0.5f, 4f)
 
                         drawVersion++
                     }
                 } else {
+
                     detectDragGestures(
                         onDragStart = { start ->
                             tempPath.reset()
-                            val world = (start - offset) / scale
+                            // экран → мир: world = screen / scale - offset
+                            val world = start / scale - offset
                             tempPath.moveTo(world.x, world.y)
                             currentStrokeData = pathData1.value
                             drawVersion++
@@ -90,7 +88,7 @@ fun PaintCanvas(
                         }
                     ) { change, _ ->
                         val data = currentStrokeData ?: return@detectDragGestures
-                        val world = (change.position - offset) / scale
+                        val world = change.position / scale - offset
                         tempPath.lineTo(world.x, world.y)
                         drawVersion++
                     }
