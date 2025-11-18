@@ -1,4 +1,4 @@
-package com.example.paint
+package com.example.paint.export
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.toArgb
-import com.example.paint.ui.theme.PathData
+import com.example.paint.model.PathData
 import java.io.File
 import java.io.FileOutputStream
 import android.content.ContentValues

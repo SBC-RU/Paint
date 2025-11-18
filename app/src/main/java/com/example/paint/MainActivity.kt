@@ -4,34 +4,22 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
-import com.example.paint.ui.theme.BottomPanel
+import com.example.paint.ui.panel.BottomPanel
 import com.example.paint.ui.theme.PaintTheme
-import com.example.paint.ui.theme.PathData
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.clipToBounds
 import androidx.activity.viewModels
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.CompositionLocalProvider
-import com.example.paint.MainViewModel
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawscope.withTransform
 
 import android.util.DisplayMetrics
+import com.example.paint.export.saveDrawingAsPng
+import com.example.paint.export.saveDrawingAsSvg
+import com.example.paint.ui.canvas.PaintCanvas
+import com.example.paint.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
