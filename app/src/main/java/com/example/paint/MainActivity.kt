@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
             val widthPx = displayMetrics.widthPixels
             val heightPx = displayMetrics.heightPixels
 
-            var isPanMode by remember { mutableStateOf(false) }  // ← НОВОЕ
+            //var isPanMode by remember { mutableStateOf(false) }  //
 
             PaintTheme {
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
                     PaintCanvas(
                         pathData1 = viewModel.currentPathData,
                         pathList = viewModel.pathList,
-                        isPanMode = isPanMode                   // ← ПЕРЕДАЁМ
+                        isPanMode = viewModel.isPanMode
                     )
 
                     Box(
@@ -51,21 +51,18 @@ class MainActivity : ComponentActivity() {
                             .padding(top = 40.dp)
                     ) {
                         BottomPanel(
+                            currentColor = viewModel.currentPathData.value.color,   // ← добавим параметр
                             onClick = { color ->
-                                // любой выбор цвета выключает "руку"
-                                isPanMode = false
+                                viewModel.disablePanMode()
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(color = color)
                             },
                             onLineWidthChange = { lineWidth ->
-                                // при изменении толщины можно тоже отключать "руку" (по желанию)
-                                isPanMode = false
+                                viewModel.disablePanMode()
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(lineWidth = lineWidth)
                             },
                             onBackClick = {
-                                // при Undo можно тоже сбрасывать "руку", если хочешь
-                                // isPanMode = false
                                 if (viewModel.pathList.isNotEmpty()) {
                                     val last = viewModel.pathList.last()
                                     viewModel.pathList.removeIf { it == last }
@@ -73,36 +70,22 @@ class MainActivity : ComponentActivity() {
                             },
                             onSaveClick = { format ->
                                 when (format) {
-                                    "png" -> saveDrawingAsPng(
-                                        context,
-                                        viewModel.pathList,
-                                        widthPx,
-                                        heightPx
-                                    )
-
-                                    "svg" -> saveDrawingAsSvg(
-                                        context,
-                                        viewModel.pathList,
-                                        widthPx,
-                                        heightPx
-                                    )
+                                    "png" -> saveDrawingAsPng(context, viewModel.pathList, widthPx, heightPx)
+                                    "svg" -> saveDrawingAsSvg(context, viewModel.pathList, widthPx, heightPx)
                                 }
                             },
                             onEraserClick = {
-                                // включили ластик → точно рисуем, а не двигаем холст
-                                isPanMode = false
+                                viewModel.disablePanMode()
                                 viewModel.currentPathData.value =
                                     viewModel.currentPathData.value.copy(color = Color(0xFFFAFAFA))
                             },
                             onClearAllClick = {
-                                // можно тоже сбрасывать "руку"
-                                // isPanMode = false
                                 viewModel.pathList.clear()
                             },
                             onPanModeToggle = {
-                                isPanMode = !isPanMode
+                                viewModel.togglePanMode()
                             },
-                            isPanMode = isPanMode
+                            isPanMode = viewModel.isPanMode
                         )
 
                     }

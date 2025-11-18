@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun BottomPanel(
+    currentColor: Color,
     onClick: (Color) -> Unit,
     onLineWidthChange: (Float) -> Unit,
     onBackClick: () -> Unit,
@@ -42,10 +43,17 @@ fun BottomPanel(
     var showSaveMenu by remember { mutableStateOf(false) }
 
     var showRgbPicker by remember { mutableStateOf(false) } //RGB
-    var customColor by remember { mutableStateOf(Color.Black) }
+    var customColor by remember { mutableStateOf(currentColor) }  // ← стартуем с VM
 
-    // новый стейт для квадрата-палитры
+// новый стейт для квадрата-палитры
     var showColorPicker by remember { mutableStateOf(false) }
+
+// если цвет в VM изменился (например, после поворота) — подтягиваем его сюда
+    LaunchedEffect(currentColor) {
+        customColor = currentColor
+    }
+
+
 
     Column(
         modifier = Modifier
