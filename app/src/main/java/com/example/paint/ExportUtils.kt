@@ -15,6 +15,11 @@ import androidx.compose.ui.graphics.toArgb
 import com.example.paint.ui.theme.PathData
 import java.io.File
 import java.io.FileOutputStream
+import android.content.ContentValues
+import android.os.Build
+import android.provider.MediaStore
+import android.media.MediaScannerConnection
+
 
 private const val TAG = "PaintExport"
 
@@ -54,35 +59,71 @@ fun saveDrawingAsPng(
             canvas.drawPath(androidPath, paint)
         }
 
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-        if (dir == null) {
-            Toast.makeText(context, "Не удалось получить папку для картинок", Toast.LENGTH_SHORT)
-                .show()
-            Log.e(TAG, "getExternalFilesDir(Environment.DIRECTORY_PICTURES) == null")
-            return
-        }
-
-        if (!dir.exists()) dir.mkdirs()
-
         val filename = "paint_${System.currentTimeMillis()}.png"
-        val file = File(dir, filename)
 
-        FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ — через MediaStore в Pictures/Paint
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(
+                    MediaStore.Images.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_PICTURES + "/Paint"
+                )
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+
+            if (uri != null) {
+                resolver.openOutputStream(uri).use { out ->
+                    if (out == null || !bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                        throw RuntimeException("Не удалось записать PNG в MediaStore")
+                    }
+                }
+
+                // снимаем флаг "IS_PENDING"
+                contentValues.clear()
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(uri, contentValues, null, null)
+
+                Toast.makeText(context, "PNG сохранён в Pictures/Paint", Toast.LENGTH_LONG).show()
+                Log.d(TAG, "PNG saved to MediaStore, uri=$uri")
+            } else {
+                throw RuntimeException("resolver.insert вернул null")
+            }
+        } else {
+            // Android 9 и ниже — старый добрый публичный Pictures
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            if (!dir.exists()) dir.mkdirs()
+
+            val file = File(dir, filename)
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+
+            // чтобы система «подхватила» новую картинку
+            MediaScannerConnection.scanFile(
+                context,
+                arrayOf(file.absolutePath),
+                arrayOf("image/png"),
+                null
+            )
+
+            Toast.makeText(
+                context,
+                "PNG сохранён:\n${file.absolutePath}",
+                Toast.LENGTH_LONG
+            ).show()
+            Log.d(TAG, "PNG saved to ${file.absolutePath}")
         }
-
-        Toast.makeText(
-            context,
-            "PNG сохранён:\n${file.absolutePath}",
-            Toast.LENGTH_LONG
-        ).show()
-
-        Log.d(TAG, "PNG saved to ${file.absolutePath}")
     } catch (e: Exception) {
         Log.e(TAG, "Ошибка при сохранении PNG", e)
         Toast.makeText(context, "Ошибка сохранения PNG", Toast.LENGTH_SHORT).show()
     }
 }
+
 
 /**
  * Конвертация Path в SVG path-d через дискретизацию
@@ -161,30 +202,64 @@ fun saveDrawingAsSvg(
 
         sb.append("</svg>")
 
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-        if (dir == null) {
-            Toast.makeText(context, "Не удалось получить папку для документов", Toast.LENGTH_SHORT)
-                .show()
-            Log.e(TAG, "getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) == null")
-            return
-        }
-
-        if (!dir.exists()) dir.mkdirs()
-
         val filename = "paint_${System.currentTimeMillis()}.svg"
-        val file = File(dir, filename)
 
-        FileOutputStream(file).use { out ->
-            out.write(sb.toString().toByteArray())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ — пишем в Downloads/PaintSvg через MediaStore
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, filename)
+                put(MediaStore.Downloads.MIME_TYPE, "image/svg+xml")
+                put(
+                    MediaStore.Downloads.RELATIVE_PATH,
+                    Environment.DIRECTORY_DOWNLOADS + "/PaintSvg"
+                )
+            }
+
+            val resolver = context.contentResolver
+            val uri = resolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                contentValues
+            )
+
+            if (uri != null) {
+                resolver.openOutputStream(uri).use { out ->
+                    if (out == null) throw RuntimeException("Не удалось открыть OutputStream")
+                    out.write(sb.toString().toByteArray())
+                }
+
+                Toast.makeText(
+                    context,
+                    "SVG сохранён в Загрузки/PaintSvg",
+                    Toast.LENGTH_LONG
+                ).show()
+                Log.d(TAG, "SVG saved to MediaStore (Downloads), uri=$uri")
+            } else {
+                throw RuntimeException("resolver.insert для SVG вернул null")
+            }
+        } else {
+            // Android 9 и ниже — публичный каталог Downloads
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!dir.exists()) dir.mkdirs()
+
+            val file = File(dir, filename)
+            FileOutputStream(file).use { out ->
+                out.write(sb.toString().toByteArray())
+            }
+
+            MediaScannerConnection.scanFile(
+                context,
+                arrayOf(file.absolutePath),
+                arrayOf("image/svg+xml"),
+                null
+            )
+
+            Toast.makeText(
+                context,
+                "SVG сохранён:\n${file.absolutePath}",
+                Toast.LENGTH_LONG
+            ).show()
+            Log.d(TAG, "SVG saved to ${file.absolutePath}")
         }
-
-        Toast.makeText(
-            context,
-            "SVG сохранён:\n${file.absolutePath}",
-            Toast.LENGTH_LONG
-        ).show()
-
-        Log.d(TAG, "SVG saved to ${file.absolutePath}")
     } catch (e: Exception) {
         Log.e(TAG, "Ошибка при сохранении SVG", e)
         Toast.makeText(context, "Ошибка сохранения SVG", Toast.LENGTH_SHORT).show()
